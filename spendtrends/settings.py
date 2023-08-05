@@ -34,6 +34,8 @@ INTERNAL_IPS = [
     "127.0.0.1",
 ]
 
+# SITE_ID = 1
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -42,6 +44,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # "allauth",
+    # "allauth.account",
     # Apps
     "dashboard",
     "theme",
@@ -81,6 +85,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "spendtrends.wsgi.application"
+
+# AUTHENTICATION_BACKENDS = [
+# Needed to login by username in Django admin, regardless of `allauth`
+# "django.contrib.auth.backends.ModelBackend",
+# `allauth` specific authentication methods, such as login by e-mail
+# "allauth.account.auth_backends.AuthenticationBackend",
+# ]
 
 
 # Database
@@ -131,6 +142,7 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
