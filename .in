@@ -1,0 +1,31 @@
+dj() {
+	python manage.py "$@"
+}
+
+djr() {
+	python manage.py runserver
+}
+
+djs() {
+	python manage.py shell
+}
+
+djts() {
+	python manage.py tailwind start
+}
+
+env() {
+	source env/bin/activate
+}
+
+makemigrations() {
+	python manage.py makemigrations "$@"
+}
+
+migrate() {
+	python manage.py migrate
+}
+
+freeze(){
+	pip freeze > requirements.txt
+}
