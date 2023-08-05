@@ -1,0 +1,14 @@
+{% load static %}
+<nav
+    class="font-sans flex flex-col text-center sm:flex-row sm:text-left sm:justify-between py-4 px-6 bg-white shadow sm:items-baseline w-full">
+    <div class="mb-2 sm:mb-0">
+        <a href="/home" class="text-2xl no-underline text-grey-darkest hover:text-blue-dark">Spend Trends</a>
+    </div>
+    <div>
+        <a href="{% url 'upload_view' %}"
+            class="text-lg no-underline text-grey-darkest hover:text-blue-dark ml-2">Upload</a>
+        <a href="{% url 'dashView' %}" class="text-lg no-underline text-grey-darkest hover:text-blue-dark ml-2">Dash</a>
+        {% comment %} <a href="/three"
+            class="text-lg no-underline text-grey-darkest hover:text-blue-dark ml-2">Three</a> {% endcomment %}
+    </div>
+</nav>
