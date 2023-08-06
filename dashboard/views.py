@@ -9,11 +9,14 @@ import io
 from dashboard.models import Category, Transaction, Account
 from datetime import datetime
 from decimal import Decimal
+from django.db.models import Sum
+from django.db.models.functions import TruncMonth
+from collections import defaultdict
 
 CATEGORY_KEYWORD_MAPPING = {
     "Groceries": ["SUPERVALU", "TESCO"],
     "Fees": ["FEE", "INTEREST CHARGED"],
-    "Pharmacy": ["PHARM"],
+    "Pharmacy": ["PHARM", "PHARMA", "PHARMACY"],
     "Doctors": ["MED", "VDC-CHURCHTOWN"],
     "Car Insurance": ["AXA"],
     "Life Insurance": ["AVIVA"],
@@ -27,6 +30,7 @@ CATEGORY_KEYWORD_MAPPING = {
         "FUEL",
         "VDC-FAIRVIEW SERVI",
         "VDP-MAXOL",
+        "VDC-CIRCLE K",
     ],
     "Converge": ["CONVERGE"],
     "Lotto": ["LOTTER"],
@@ -36,6 +40,8 @@ CATEGORY_KEYWORD_MAPPING = {
     "Audible": ["VDP-Audible UK"],
     "Savings": ["SAVINGS"],
     "Credit Card": ["CLICK VISA"],
+    "Rent": ["RENT"],
+    "Maintenance": ["MTCE"],
 }
 
 
@@ -50,13 +56,25 @@ def get_category_for_vendor(vendor):
 
 
 def dashView(request):
-    context = {"transitions": Transaction.objects.all()}
+    monthly_category_totals = (
+        Transaction.objects.annotate(month=TruncMonth("date"))
+        .values("month", "category__name")
+        .annotate(total_amount=Sum("amount"))
+        .order_by("month", "category__name")
+    )
+
+    results = defaultdict(list)
+    for month in monthly_category_totals:
+        results[month["month"]].append(
+            {"category": month["category__name"], "total_amount": month["total_amount"]}
+        )
+
+    context = {"monthly_data": dict(results)}
+
     return render(request, "dashboards/index.html", context)
 
 
 class UploadView(View):
-    pass
-
     def post(self, request, *args, **kwargs):
         csv_file = request.FILES.get("uploaded_file")
 
@@ -79,14 +97,20 @@ class UploadView(View):
 
         for row in csv.reader(io_string, delimiter=",", quotechar="|"):
             # Parsing data from the CSV row
-            account_number = row[0]
-            date_str = row[1]
-            vendor = row[2].strip('"')  # removing surrounding quotes
             trans_type = row[-1]
-            amount = row[3].strip()
-            amount = amount.replace(",", "")
+            if trans_type == "Credit":
+                amount = row[4].strip()
+                if amount == "0.00":
+                    continue
+                amount = amount.replace(",", "")
+            else:
+                amount = row[3].strip()
+                amount = amount.replace(",", "")
             try:
                 amount_decimal = Decimal(amount)
+                account_number = row[0]
+                date_str = row[1]
+                vendor = row[2].strip('"')  # removing surrounding quotes
             except decimal.InvalidOperation:
                 print(f"Failed to convert '{amount}' from row: {row}")
                 continue  # skip this row and continue with the next
