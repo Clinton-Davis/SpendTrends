@@ -12,37 +12,8 @@ from decimal import Decimal
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
 from collections import defaultdict
-
-CATEGORY_KEYWORD_MAPPING = {
-    "Groceries": ["SUPERVALU", "TESCO"],
-    "Fees": ["FEE", "INTEREST CHARGED"],
-    "Pharmacy": ["PHARM", "PHARMA", "PHARMACY"],
-    "Doctors": ["MED", "VDC-CHURCHTOWN"],
-    "Car Insurance": ["AXA"],
-    "Life Insurance": ["AVIVA"],
-    "Amazon Prime": ["AMZNPRIME"],
-    "Entertainment": ["DISNEY", "*YouTub", "discovery+", "VDP-DISNEY PLUS"],
-    "Loan": ["LOAN"],
-    "ChatGPT": ["CHATGPT"],
-    "Revolut": ["Revolut"],
-    "Internet": ["THREE IRELAND"],
-    "Petrol": [
-        "FUEL",
-        "VDC-FAIRVIEW SERVI",
-        "VDP-MAXOL",
-        "VDC-CIRCLE K",
-    ],
-    "Converge": ["CONVERGE"],
-    "Lotto": ["LOTTER"],
-    "Web Hosting": ["HEROKU"],
-    "Electric": ["VDP-PREPAYPOWER"],
-    "Phone": ["VDP-VODAFONE"],
-    "Audible": ["VDP-Audible UK"],
-    "Savings": ["SAVINGS"],
-    "Credit Card": ["CLICK VISA"],
-    "Rent": ["RENT"],
-    "Maintenance": ["MTCE"],
-}
+from dashboard.category_keyword_mapping import CATEGORY_KEYWORD_MAPPING
+from collections import OrderedDict, defaultdict
 
 
 def get_category_for_vendor(vendor):
@@ -52,24 +23,49 @@ def get_category_for_vendor(vendor):
                 # Once matched, get or create the category object
                 category_obj, created = Category.objects.get_or_create(name=category)
                 return category_obj
-    return None  # if no category matched
+    return "Sundries"  # if no category matched
 
 
 def dashView(request):
-    monthly_category_totals = (
-        Transaction.objects.annotate(month=TruncMonth("date"))
+    # Querying Credit transactions
+    credit_totals = (
+        Transaction.objects.filter(trans_type="Credit")
+        .annotate(month=TruncMonth("date"))
         .values("month", "category__name")
         .annotate(total_amount=Sum("amount"))
         .order_by("month", "category__name")
     )
 
-    results = defaultdict(list)
-    for month in monthly_category_totals:
-        results[month["month"]].append(
+    # Querying Debit transactions
+    debit_totals = (
+        Transaction.objects.filter(trans_type="Debit")
+        .annotate(month=TruncMonth("date"))
+        .values("month", "category__name")
+        .annotate(total_amount=Sum("amount"))
+        .order_by("month", "category__name")
+    )
+
+    results = defaultdict(
+        lambda: {"credit": [], "debit": [], "credit_total": 0, "debit_total": 0}
+    )
+
+    # Storing Credit transactions and their totals
+    for month in credit_totals:
+        results[month["month"]]["credit"].append(
             {"category": month["category__name"], "total_amount": month["total_amount"]}
         )
+        results[month["month"]]["credit_total"] += month["total_amount"]
 
-    context = {"monthly_data": dict(results)}
+    # Storing Debit transactions and their totals
+    for month in debit_totals:
+        results[month["month"]]["debit"].append(
+            {"category": month["category__name"], "total_amount": month["total_amount"]}
+        )
+        results[month["month"]]["debit_total"] += month["total_amount"]
+
+    ordered_results = OrderedDict(sorted(results.items()))
+
+    context = {"monthly_data": dict(ordered_results)}
 
     return render(request, "dashboards/index.html", context)
 
