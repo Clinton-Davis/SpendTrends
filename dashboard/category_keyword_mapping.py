@@ -28,4 +28,5 @@ CATEGORY_KEYWORD_MAPPING = {
     "Credit Card": ["CLICK VISA"],
     "Rent": ["RENT"],
     "Maintenance": ["MTCE"],
+    "Investments": ["VDP-Uphold"],
 }

@@ -4,6 +4,7 @@ from django.views import View
 from django.shortcuts import render, redirect
 import csv
 import io
+import pandas as pd
 
 # from dashboard.category_keyword_mapping import CATEGORY_KEYWORD_MAPPING
 from dashboard.models import Category, Transaction, Account
@@ -21,9 +22,17 @@ def get_category_for_vendor(vendor):
         for keyword in keywords:
             if keyword in vendor:
                 # Once matched, get or create the category object
-                category_obj, created = Category.objects.get_or_create(name=category)
+                category_obj, created = Category.objects.get_or_create(
+                    name=category,
+                    defaults={"description": "Automatically created category"},
+                )
                 return category_obj
-    return "Sundries"  # if no category matched
+
+    # If no category matched, return a 'Sundries' Category object
+    category_obj, created = Category.objects.get_or_create(
+        name="Sundries", defaults={"description": "Default sundries category"}
+    )
+    return category_obj
 
 
 def dashView(request):
@@ -70,69 +79,77 @@ def dashView(request):
     return render(request, "dashboards/index.html", context)
 
 
+import io
+
+
 class UploadView(View):
     def post(self, request, *args, **kwargs):
         csv_file = request.FILES.get("uploaded_file")
 
-        if csv_file is None:
-            # Handle the error: return an error response or set a flag for the template to display an error message
+        if not csv_file:
             print(request, "NO FILE!")
             return redirect("upload_view")
 
         if not csv_file.name.endswith(".csv"):
-            # Handle the case where the uploaded file isn't a CSV
-            # messages.error(request, "This file format is not supported!")
             print(request, "This file format is not supported!")
             return redirect("upload_view")
 
+        # Reading the CSV directly into a DataFrame
         data_set = csv_file.read().decode("UTF-8")
-        io_string = io.StringIO(data_set)
+        df = pd.read_csv(io.StringIO(data_set))
+        df.columns = df.columns.str.strip()
+        # Iterating through each row of the DataFrame
+        for _, row in df.iterrows():
+            trans_type = row["Transaction Type"]
 
-        # Assuming the CSV has a header row, we'll skip the first row.
-        next(io_string)
-
-        for row in csv.reader(io_string, delimiter=",", quotechar="|"):
-            # Parsing data from the CSV row
-            trans_type = row[-1]
-            if trans_type == "Credit":
-                amount = row[4].strip()
-                if amount == "0.00":
+            if row["Transaction Type"] == "Credit":
+                amount = str(row["Credit Amount"]).replace(",", "")
+                if pd.isna(amount):
                     continue
-                amount = amount.replace(",", "")
             else:
-                amount = row[3].strip()
-                amount = amount.replace(",", "")
+                amount = str(row["Debit Amount"]).replace(",", "")
+                if pd.isna(amount):
+                    continue
+
             try:
                 amount_decimal = Decimal(amount)
-                account_number = row[0]
-                date_str = row[1]
-                vendor = row[2].strip('"')  # removing surrounding quotes
-            except decimal.InvalidOperation:
-                print(f"Failed to convert '{amount}' from row: {row}")
-                continue  # skip this row and continue with the next
+                account_number = row["Posted Account"]
+                date_str = row["Posted Transactions Date"]
+                vendor = row["Description"].strip('"')
+            except Exception as e:
+                print(f"Failed to process row: {row}. Error: {e}")
+                continue
 
-            # Assuming account exists, otherwise you might want to create it or handle accordingly.
-            account = Account.objects.get(account_number=account_number)
-            category = get_category_for_vendor(
-                vendor
-            )  # get the category object using the helper function
+            try:
+                account = Account.objects.get(account_number=account_number)
+            except Account.DoesNotExist:
+                print(f"Account {account_number} does not exist. Skipping.")
+                continue
 
-            # Convert date string into a date object
+            category = get_category_for_vendor(vendor)
             date_obj = datetime.strptime(date_str, "%d/%m/%y").date()
 
-            # Create a new transaction
-            transaction = Transaction(
+            existing_transaction = Transaction.objects.filter(
                 account=account,
                 date=date_obj,
-                vendor=vendor,
                 amount=amount_decimal,
-                category=category,
-                trans_type=trans_type,
-            )
-            transaction.save()
+                vendor=vendor,
+            ).first()
+
+            if not existing_transaction:
+                transaction = Transaction(
+                    account=account,
+                    date=date_obj,
+                    vendor=vendor,
+                    amount=amount_decimal,
+                    category=category,
+                    trans_type=trans_type,
+                )
+                transaction.save()
+            else:
+                print(f"Skipped duplicate transaction for {vendor} on {date_obj}")
 
         print(request, "File uploaded and processed successfully!")
-
         return redirect("dashView")
 
     def get(self, request, *args, **kwargs):
